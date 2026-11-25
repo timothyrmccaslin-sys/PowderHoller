@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Powder Holler - endless first-person downhill</title>
+<meta name="description" content="An endless, procedurally generated first-person ski run down the Appalachian high country. Carve, catch air, grab snowflakes, and outrun the Holler Yeti.">
+<meta name="theme-color" content="#1b2433">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 28 13 8l5 8 4-5 8 17z' fill='%23e8eef6'/%3E%3C/svg%3E">
+<style>
+  :root { --ink: #f4f7fb; --dim: rgba(244,247,251,.72); --glass: rgba(16,24,36,.5); --edge: rgba(255,255,255,.16); --accent: #ff7a2f; --ice: #9fd8ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #a9bdd3; color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .glass { background: var(--glass); border: 1px solid var(--edge); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 12px; }
+  .screen { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(10,16,26,.2), rgba(10,16,26,.6)); transition: opacity .6s; z-index: 6; }
+  .gone, #loading.gone { opacity: 0; pointer-events: none; }
+  #over, #paused { opacity: 0; pointer-events: none; } #over.show, #paused.show { opacity: 1; pointer-events: auto; }
+  .card { max-width: 460px; margin: 16px; padding: 24px 28px 20px; text-align: center; }
+  h1 { margin: 0; font: 800 46px/1 "Trebuchet MS", system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase; background: linear-gradient(180deg, #fff, #bfe3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 6px 0 14px; color: var(--dim); font-size: 15px; }
+  .controls { text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0 auto 16px; width: max-content; max-width: 100%; color: var(--dim); }
+  .controls b { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  kbd { display: inline-block; padding: 0 6px; border: 1px solid var(--edge); border-bottom-width: 2px; border-radius: 5px; font: 12px ui-monospace, monospace; color: var(--ink); background: rgba(255,255,255,.08); }
+  button, select { font: inherit; color: var(--ink); background: rgba(255,255,255,.08); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 11px; cursor: pointer; }
+  button:hover, select:hover { background: rgba(255,255,255,.18); }
+  button.on { background: var(--ice); color: #0c1a28; border-color: var(--ice); }
+  .go { font-size: 17px; padding: 10px 30px; background: var(--accent); color: #200c00; border: none; font-weight: 700; letter-spacing: .03em; }
+  .go:hover { background: #ff9152; } .go:disabled { opacity: .5; cursor: wait; }
+  .opt { display: block; margin-top: 10px; color: var(--dim); font-size: 13px; }
+  #loading { margin-top: 14px; height: 3px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; transition: opacity .5s; }
+  #loadbar { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #ibest { color: var(--ice); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  .hud { position: fixed; z-index: 3; opacity: 0; transition: opacity .5s; pointer-events: none; }
+  body.playing .hud { opacity: 1; } .hud button, .hud select { pointer-events: auto; }
+  #brand { top: 12px; left: 12px; padding: 7px 12px; font: 800 15px "Trebuchet MS", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+  #scorebox { top: 10px; left: 50%; transform: translateX(-50%); text-align: center; padding: 6px 18px 8px; min-width: 170px; }
+  #score { font: 800 34px/1 ui-monospace, "SF Mono", monospace; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  #combo { font-size: 13px; color: var(--accent); font-weight: 700; min-height: 1.2em; }
+  #combowrap { height: 3px; background: rgba(255,255,255,.15); border-radius: 2px; overflow: hidden; } #combobar { height: 100%; width: 0; background: var(--accent); }
+  #yeti { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); padding: 4px 14px; border-radius: 99px; background: rgba(120,20,20,.55); border: 1px solid rgba(255,140,140,.4); font-weight: 700; letter-spacing: .05em; z-index: 3; display: none; }
+  #yeti.show { display: block; } #yeti.near { animation: pulse .5s infinite alternate; background: rgba(200,20,20,.8); }
+  @keyframes pulse { to { transform: translateX(-50%) scale(1.12); } }
+  #tools { top: 12px; right: 12px; display: flex; gap: 6px; padding: 6px; align-items: center; }
+  #tools select option { color: #000; }
+  #lives { display: flex; gap: 4px; margin-right: 4px; } #lives i { width: 8px; height: 22px; border-radius: 4px 4px 2px 2px; background: linear-gradient(#ff7a2f, #c23d0a); display: block; } #lives i.lost { background: rgba(255,255,255,.18); }
+  #stats { bottom: 12px; left: 12px; padding: 8px 14px; font: 13px ui-monospace, monospace; display: flex; gap: 16px; } #stats b { font-size: 20px; display: block; font-family: ui-monospace, monospace; }
+  #fps { color: var(--dim); font-size: 11px; align-self: end; }
+  #help { position: fixed; bottom: 12px; right: 12px; padding: 9px 13px; font-size: 12px; color: var(--dim); z-index: 3; max-width: 290px; }
+  #help.hidden, body:not(.playing) #help { display: none; }
+  #pops { position: fixed; top: 32%; left: 50%; transform: translateX(-50%); z-index: 4; text-align: center; pointer-events: none; }
+  .pop { margin-bottom: 6px; font: 800 26px "Trebuchet MS", sans-serif; text-shadow: 0 2px 10px rgba(0,0,0,.5); animation: rise 1.6s ease-out forwards; white-space: nowrap; }
+  .pop small { display: block; font: 600 13px system-ui, sans-serif; color: var(--dim); }
+  .pop.big { font-size: 34px; color: #fff3c4; } .pop.gold { color: #ffd34d; } .pop.bad { color: #ff8a7a; } .pop.dim { font-size: 16px; color: var(--dim); }
+  @keyframes rise { 0% { opacity: 0; transform: translateY(14px) scale(.9); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-30px); } }
+  #skis { position: fixed; left: 50%; bottom: -13vmin; width: 0; height: 0; z-index: 2; pointer-events: none; transition: opacity .2s; opacity: 0; } body.playing #skis { opacity: 1; }
+  #skis .ski { position: absolute; bottom: 0; width: 7.5vmin; height: 46vmin; border-radius: 48% 48% 6px 6px / 16% 16% 6px 6px; background: linear-gradient(90deg, #9b1f0b, #e8431a 30%, #ff7a2f 50%, #e8431a 70%, #9b1f0b); box-shadow: inset 0 3vmin 0 -1vmin rgba(255,255,255,.85), 0 0 2vmin rgba(0,0,0,.25); transition: transform .15s; }
+  #skis .l { left: -15vmin; transform: perspective(40vmin) rotateX(62deg) rotateZ(2deg); } #skis .r { left: 7.5vmin; transform: perspective(40vmin) rotateX(62deg) rotateZ(-2deg); }
+  #skis.plow .l { transform: perspective(40vmin) rotateX(62deg) rotateZ(9deg) translateX(-1vmin); } #skis.plow .r { transform: perspective(40vmin) rotateX(62deg) rotateZ(-9deg) translateX(1vmin); }
+  #ocause { color: #ff9a8a; font-weight: 700; font-size: 16px; } #oscore { font: 800 54px/1.1 ui-monospace, monospace; margin: 6px 0 0; }
+  #obest { color: var(--dim); margin-bottom: 12px; } #obest.nb { color: #ffd34d; font-weight: 700; font-size: 17px; }
+  #ostats { display: grid; grid-template-columns: auto auto; gap: 3px 18px; justify-content: center; text-align: left; margin-bottom: 16px; color: var(--dim); } #ostats b { color: var(--ink); }
+  #nogl { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 24px; background: #1b2433; z-index: 9; }
+  .touch .kb { display: none; } body:not(.touch) .tc { display: none; }
+  @media (max-width: 640px) { h1 { font-size: 34px; } #brand, #fps, #help { display: none !important; } #scorebox { top: 70px; } #yeti { top: 140px; } #score { font-size: 26px; } #scorebox { min-width: 120px; } #stats b { font-size: 16px; } }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Powder Holler 3D view"></canvas>
+<div id="skis"><div class="ski l"></div><div class="ski r"></div></div>
+<div id="brand" class="hud glass">Powder Holler</div>
+<div id="scorebox" class="hud glass"><div id="score">0</div><div id="combo"></div><div id="combowrap"><div id="combobar"></div></div></div>
+<div id="yeti"></div>
+<div id="tools" class="hud glass"><div id="lives"></div>
+  <select id="quality" aria-label="Quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
+  <button id="sound">Sound off</button><button id="helpbtn" aria-label="Help">?</button></div>
+<div id="stats" class="hud glass"><span>speed<b id="spd">0 mph</b></span><span>distance<b id="dst">0 m</b></span><span id="fps"></span></div>
+<div id="help" class="glass">
+  <div><kbd>A</kbd><kbd>D</kbd> lean · <kbd>W</kbd> tuck · <kbd>S</kbd> snowplow · <kbd>Space</kbd> jump · in the air: <kbd>A</kbd><kbd>D</kbd> spin, <kbd>W</kbd>/<kbd>S</kbd> flip, <kbd>Shift</kbd> grab · <kbd>C</kbd> look back · <kbd>P</kbd> pause · <kbd>H</kbd> hide</div>
+</div>
+<div id="pops"></div>
+<div id="intro" class="screen">
+  <div class="card glass">
+    <h1>Powder Holler</h1>
+    <div class="sub">An endless run down the Appalachian high country. Carve the spruce, catch air off the kickers, grab every snowflake, and keep ahead of what wakes at 2,000&nbsp;m.</div>
+    <div class="controls kb">
+      <b><kbd>A</kbd> <kbd>D</kbd></b><span>lean left / right (arrows too)</span>
+      <b><kbd>W</kbd> / <kbd>S</kbd></b><span>tuck for speed / snowplow to brake</span>
+      <b><kbd>Space</kbd></b><span>jump - kickers send you higher</span>
+      <b>In the air</b><span><kbd>A</kbd><kbd>D</kbd> spin · <kbd>W</kbd><kbd>S</kbd> flip · <kbd>Shift</kbd> grab</span>
+      <b><kbd>C</kbd></b><span>look back over your shoulder</span>
+    </div>
+    <div class="controls tc"><b>Left / right edge</b><span>lean (spin in the air)</span><b>Tap middle</b><span>jump</span><b>Hold middle</b><span>tuck (flip in the air)</span><b>Drag down</b><span>snowplow</span></div>
+    <button id="start" class="go" disabled>Drop in</button>
+    <label class="opt"><input type="checkbox" id="withsound" checked> with sound</label>
+    <label class="opt tc"><input type="checkbox" id="withtilt"> tilt the phone to steer</label>
+    <div id="ibest"></div>
+    <div id="loading"><div id="loadbar"></div></div>
+  </div>
+</div>
+<div id="paused" class="screen"><div class="card glass"><h1 style="font-size:32px">Paused</h1><p class="sub">Catch your breath.</p><button id="resume" class="go">Keep skiing</button></div></div>
+<div id="over" class="screen">
+  <div class="card glass">
+    <div id="ocause"></div>
+    <div id="oscore">0</div>
+    <div id="obest"></div>
+    <div id="ostats"></div>
+    <button id="again" class="go">Ride again</button> <button id="newmtn">New mountain</button>
+    <div class="opt kb"><kbd>R</kbd> ride again · <kbd>N</kbd> new mountain</div>
+  </div>
+</div>
+<div id="nogl"><div><h1>Powder Holler</h1><p>This run needs WebGL2. Try a current browser with hardware acceleration on.</p></div></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
